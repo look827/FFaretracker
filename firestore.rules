@@ -1,0 +1,30 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isAdmin() {
+      return signedIn() && request.auth.token.admin == true;
+    }
+
+    // Shared canonical prices: signed-in users can read; only admin can write.
+    match /flights/{flightId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isAdmin();
+    }
+    match /priceHistory/{entryId} {
+      allow read: if signedIn();
+      allow write: if false; // Written only by trusted Cloud Functions using Admin SDK.
+    }
+    match /users/{uid} {
+      allow read, create, update: if signedIn() && request.auth.uid == uid;
+      allow delete: if false;
+      match /watchlist/{watchId} {
+        allow read, create, update, delete: if signedIn() && request.auth.uid == uid;
+      }
+      match /alertSettings/{settingId} {
+        allow read, create, update, delete: if signedIn() && request.auth.uid == uid;
+      }
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}
